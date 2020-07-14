@@ -1,0 +1,19 @@
+Events|Time (s)|Altitude (km)|Initial velocity(m/s)
+PS1 Ignition|0.00|0.02|451.89
+PSOM XL1,2(GL) Ignition|0.42|0.02|451.89
+PSOM XL3,4(GL) Ignition|0.62|0.02|451.89
+PSOM XLS, 6(AL) Ignition|25.00|2.70|617.86
+PSOMXL1,2(GL) Separation|69.90|23.85|1470.13
+PSOM XL3,4 (GL) Separation|70.10|23.98|1475.12
+PSOM XLS5,6(AL) Separation|92.00|40.43|2094.12
+PS1 Separation|109.62|56.01|2395.19
+PS2 Ignition|109.82|56.18|2394.67
+CLGinitiation|115.00|60.53|2424.44
+Payload Fairing Separation|199.32|113.19|3640.04
+PS2 Separation|261.66|132.33|5377.57
+PS3 Ignition|262.86|132.55|5377.19
+PS3 Separation|662.70|190.65|7728.78
+PS4 ignition|672.70|192.25|7726.92
+Ps4 Cut-off|1181.68|448.28|9644.07
+IRNSS-1C Separation|1218.68|499.63|9604.87
+

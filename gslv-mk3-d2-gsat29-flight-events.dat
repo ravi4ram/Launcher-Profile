@@ -1,0 +1,10 @@
+Events|Time (s)|Altitude (km)|Initial velocity(m/s)
+S200 Strap-ons Ignition|0.0|0.024|451.91
+L110 Core Stage Ignition|110.16|39.408|1644.13
+S200 Strap-ons Separation|139.16|62.235|2016.01
+Payload Fairing Separation|230.9|115.580|2923.04
+L110 Core Stage Shutoff|315.72|155.413|4539.82
+L110 Core Stage Separation|318.82|157.245|4576.52
+C25 Cryo Stage Ignition|321.24|158.647|4573.65
+C25 Cryo Stage Shutoff|988.3|201.031|10210.64
+GSAT-29 Separation|1003.5|207.576|10234.67
