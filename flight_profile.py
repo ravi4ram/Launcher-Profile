@@ -7,7 +7,7 @@ from bisect import bisect_left
 from scipy.interpolate import make_interp_spline, BSpline
 
 # parse flight sequence data
-def readFlightData(fileName, sh=1):
+def read_flight_data(fileName, sh=1):
 	ldata = np.genfromtxt(fileName, delimiter='|', skip_header=sh, autostrip=True, dtype='unicode')
 	# split the arrays
 	event = ldata[:,0]
@@ -23,7 +23,7 @@ def readFlightData(fileName, sh=1):
 	return event, time, altitude, velocity
 
 # parse velocity data
-def readVelocityData(fileName, sh=1):
+def read_velocity_data(fileName, sh=1):
 	ldata = np.genfromtxt(fileName, delimiter='|', skip_header=sh, autostrip=True, dtype='unicode')
 	# split the arrays
 	time = ldata[:,0]
@@ -34,7 +34,7 @@ def readVelocityData(fileName, sh=1):
 	return time, velocity
 
 # parse altitude data
-def readAltitudeData(fileName, sh=1):
+def read_altitude_data(fileName, sh=1):
 	ldata = np.genfromtxt(fileName, delimiter='|', skip_header=sh, autostrip=True, dtype='unicode')
 	# split the arrays
 	time = ldata[:,0]
@@ -45,7 +45,7 @@ def readAltitudeData(fileName, sh=1):
 	return time, altitude
 
 # parse atmospheric data
-def readAtmosphericData(fileName='./atm_data.dat', sh=2):
+def read_atmospheric_data(fileName='./atm_data.dat', sh=2):
 	atw = np.genfromtxt(fileName, delimiter='|', skip_header=sh)
 	return atw
 	
@@ -65,7 +65,7 @@ def interpolate(x_list, y_list, x):
 		return y_list[i] + slopes[i] * (x - x_list[i])
 
 # returns interpolated atmos data for each alt (altitude value)	
-def getAtmosphericData(ndarray, alt):
+def get_atmospheric_data(ndarray, alt):
 	# split the arrays
 	altitude = ndarray[:,0]
 	temperature = ndarray[:,1]
@@ -85,119 +85,34 @@ def find_nearest(array, value):
     idx = (np.abs(array - value)).argmin()
     return idx, array[idx]
 
-# sort multiple list based on mainList indices	
-def sortLists(mainList, sec1List, sec2List ):
-	indices = [b[0] for b in sorted(enumerate(mainList),key=lambda i:i[1])]
-	a=[]; b=[]; c=[]; d=[];
-	for i in (indices):
-		a.append(mainList[i])
-		b.append(sec1List[i])
-		c.append(sec2List[i])
-	return a, b, c
-
-# combines datas from multiple files. Units returned (sec, km, m/sec)
-def combineVelocityData(file_evt, file_alt, file_vel):
-	combined_time = []; combined_velocity = []; combined_altitude = [];
-	# read velocity data (sec, m/sec)
-	f_time, f_velocity = readVelocityData(file_vel, 1)
-	# read altitude data (sec, km)
-	h_time, h_altitude = readAltitudeData(file_alt, 1)
-	# combine data
-	for index, (ht, ha, ft, fv) in enumerate(zip(h_time, h_altitude, f_time, f_velocity)):
-		if(ht == ft): 
-			combined_time.append(ht)
-			combined_altitude.append(ha)
-			combined_velocity.append(fv)			
-
-	# file check
-	if os.path.exists(file_evt):
-		# read event, time, altitude, velocity
-		event, time, altitude, velocity = readFlightData(file_evt, 1)
-		events_data = (event, time, altitude, velocity)		
-		# relative velocity
-		velocity = [x - velocity[0] for x in velocity]
-
-	# combine data
-	for index, (t, a, v) in enumerate(zip(time, altitude, velocity)):
-		i, val = find_nearest(combined_time, t)
-		combined_time.insert(i, t)
-		combined_altitude.insert(i, a)
-		combined_velocity.insert(i, v)
-
-	# sort combined data
-	combined_time, combined_altitude, combined_velocity = sortLists( combined_time, combined_altitude, combined_velocity )
-	# return
-	return combined_time, combined_altitude, combined_velocity, events_data
-
 # get atmospheric data for each altitude. Units returned (kg/m3)
-def combineDensityData(file_atm, altitude):	
+def get_density_data(file_atm, altitude):	
 	temperature = []; pressure = []; density = [];
 	# file check
 	if os.path.exists(file_atm):
 		# read Altitude(km), Temp(K), Density(kg/m3), Pressure(Pa), Mol. Wt.(kg/kmol)
-		ndr = readAtmosphericData(file_atm, 2)	# skip first 2 headers
+		ndr = read_atmospheric_data(file_atm, 2)	# skip first 2 headers
 		# get atmos data for each altitude 
 		for index, elem in enumerate(altitude):
-			t, d, p, m = getAtmosphericData(ndr, elem )
+			t, d, p, m = get_atmospheric_data(ndr, elem )
 			density.append(d)
 	return density
 
 # calculate avg acceleration from velocity and time intervel
-def getAcceleration(velocity, time):
+def get_acceleration(velocity, time):
 	acceleration = []
 	pre_time = 0; pre_velocity = 0;
 	for i, (t, v) in enumerate( zip(time, velocity)): 
 		dv = v - pre_velocity
 		dt = t - pre_time			
-		if dt != 0: 
-			a = dv/dt
+		if dt != 0:  a = dv/dt
 		else: a = 0
-
 		pre_time = t; pre_velocity = v;		
 		acceleration.append(a)	
 	return acceleration
 
-# calculate dynamic pressure (Pa-N/m2) and max-q with its corresponding altitude	
-def getMaxQ(altitude, velocity, density, vehicle_diameter):
-	# vehicle constants assumed
-	A      = math.pi/4*(vehicle_diameter)**2; 	# frontal area (m^2)
-	CD     = 0.5;           		# drag coefficient (assumed constant)
-	# variables
-	D = []; Q = [];
-	# calculate dynamic pressure and drag force
-	for a, v, d in zip(altitude, velocity, density):
-		q  = 1/2 * d * v**2;	# dynamic pressure
-		Q.append(q)
-		d  = q * A * CD;		# drag	
-		D.append(d)		
-	# max-q 
-	max_q = max(Q)
-	return Q, max_q
-
-# generate plot values
-def generatePlotValues(filename_atm, filename_evt, filename_alt, filename_vel):
-	# get combined data
-	# events_data = (event, time, altitude, velocity)
-	time, altitude, velocity, events_data = combineVelocityData(filename_evt, filename_alt, filename_vel)	
-	# get avg acceleration
-	acceleration = getAcceleration(velocity, time)	
-	# get atmospheric data
-	density = combineDensityData(filename_atm, altitude)
-	# calculate dynamic pressure and max-q	
-	q, max_q = getMaxQ(altitude, velocity, density, vehicle_diameter=3.0)			
-	
-	# velocity (m/s) to (Km/s) for plotting
-	velocity = [v/1000 for v in velocity]
-	# acceleration (m/s2) to (in G's) for plotting
-	acceleration = [a/9.8 for a in acceleration]	
-	# Pascal to KPa for plotting
-	q = [p/1000 for p in q]	
-		
-	# returns time, altitude, velocity, acceleration, q, events_data
-	return time, altitude, velocity, acceleration, q, events_data
-	
 # set font sizes
-def setPlotFonts():
+def set_plot_fonts():
 	# font size
 	S_SIZE = 7
 	plt.rc('font', size=S_SIZE)         # controls default text sizes
@@ -207,21 +122,83 @@ def setPlotFonts():
 	plt.rc('ytick', labelsize=S_SIZE)   # fontsize of the tick labels	 
 	return
 
-# time serie plot
-def plot_time_series( ax, title_label, alt, alt_label, time, time_label, events):
+# plot altitude and relative velocity vs time
+def plot_merged_display(plot_label, time, altitude, velocity, events_data):
+	fig, ax1 = plt.subplots( figsize=(12,5))
+	fig.suptitle(plot_label, fontsize=10)
+	fig.subplots_adjust(top=0.8)	
 	# fix font sizes
-	setPlotFonts()
+	set_plot_fonts()
 	S_SIZE = 6
-	ax.set_title(title_label, fontsize=S_SIZE)
+	plot_text = 'Merged_Display'
+	ax1.set_title(plot_text, fontsize=S_SIZE)
+	# set the x label
+	ax1.set_xlabel('Time (sec)')
+	ax1.set_ylabel('Altitude (m)', color="red")
+	ax1.plot(time, altitude, color='red')
+	ax1.tick_params(axis='y', colors='red')
+	# instantiate a second axes that shares the same x-axis
+	ax2 = ax1.twinx()  
+	# we already handled the x-label with ax1
+	ax2.set_ylabel('Relative Velocity (km/s)', color="blue")
+	ax2.plot(time, velocity, color='blue')
+	ax2.tick_params(axis='y', colors='blue')
+	# mark events. events_data = (event, time, altitude, velocity)
+	for i, (event, px)  in enumerate(zip(events_data[0], events_data[1])):
+		time_index, val = find_nearest(time, px)
+		py1 = altitude[time_index]
+		py2 = velocity[time_index]
+		ax1.scatter( px, py1, s=30, color='g')
+		ax2.scatter( px, py2, s=30, color='g')
+		ax1.text( px, py1, event, fontsize='x-small')
+		ax2.text( px, py2, event, fontsize='x-small')
+	# color
+	plot_bg_color = (1, 1, 0.5)	
+	# draw ticks like a graph sheet
+	ax1.set_facecolor(plot_bg_color)	
+	# Turn on the minor TICKS, which are required for the minor GRID
+	ax1.minorticks_on()
+	# Customize the major grid
+	ax1.grid(which='major', linestyle='-', linewidth='0.5', color='red')
+	# Customize the minor grid
+	ax1.grid(which='minor', linestyle=':', linewidth='0.5', color='black')
+	# Turn off the display of all ticks.
+	ax1.tick_params(which='both', # Options for both major and minor ticks
+					top='off', # turn off top ticks
+					left='off', # turn off left ticks
+					right='off',  # turn off right ticks
+					bottom='off') # turn off bottom ticks	
+	
+	# show
+	fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+	s_name = plot_label.lower() + '_' + plot_text.lower() + '.png'
+	plt.savefig(s_name)
+	plt.show()
+	return
+
+# plot acceleration vs time	
+def plot_acceleration(plot_label, time, acceleration, events_data):
+	# Create a figure with 2 rows and 2 cols of subplots
+	fig, ax = plt.subplots( figsize=(12,5) )
+	fig.suptitle(plot_label, fontsize=10)
+	fig.subplots_adjust(top=0.8)	
+	plot_text = 'Acel_vs_Time'
+	alt_label = "Accleration (in G's)"
+	time_label = "Time (sec)"
+	# fix font sizes
+	set_plot_fonts()
+	S_SIZE = 6
+	ax.set_title(plot_text, fontsize=S_SIZE)
 	ax.tick_params(axis='both', which='major', labelsize=S_SIZE) 
 	ax.tick_params(axis='both', which='minor', labelsize=S_SIZE)	
 	# color
 	plot_bg_color = (1, 1, 0.5)
 	# plot
-	ax.plot(time, alt)
-	for i, (event, px)  in enumerate(zip(events[0], events[1])):
-		time_index = time.index(px)
-		py = alt[time_index]
+	ax.plot(time, acceleration)
+	# mark events. events_data = (event, time, altitude, velocity)
+	for i, (event, px)  in enumerate(zip(events_data[0], events_data[1])):
+		time_index, val = find_nearest(time, px)
+		py = acceleration[time_index]
 		ax.scatter( px, py, s=30, color='g')
 		ax.text( px, py, event, fontsize='x-small')
 	# set axis labels 	
@@ -237,27 +214,42 @@ def plot_time_series( ax, title_label, alt, alt_label, time, time_label, events)
 	ax.grid(which='major', linestyle='-', linewidth='0.5', color='red')
 	# customize the minor grid
 	ax.grid(which='minor', linestyle=':', linewidth='0.5', color='black')		
-	return	
 
-def plot_alt_series( ax, title_label, x, x_label, y, y_label, events):
-	# fix font sizes
-	setPlotFonts()
+	# show
+	fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+	s_name = plot_label.lower() + '_' + plot_text.lower() + '.png'
+	plt.savefig(s_name)
+	plt.show()
+	return
+
+# plot dynamic pressure vs alt
+def plot_dynamic_pressure(plot_label, altitude, dynamic_pressure, events_data):
+	# Create a figure with 2 rows and 2 cols of subplots
+	fig, ax = plt.subplots( figsize=(12,5) )
+	fig.suptitle(plot_label, fontsize=10)
+	fig.subplots_adjust(top=0.8)	
+	plot_text = 'Alt_vs_Dyn_Pressure'
+	x_label = "Altitude (km)"
+	y_label = "Dynamic Pressure (kPa)"	
+	# setup fonts
+	set_plot_fonts()
 	S_SIZE = 6
-	ax.set_title(title_label, fontsize=S_SIZE)
+	ax.set_title(plot_text, fontsize=S_SIZE)
 	ax.tick_params(axis='both', which='major', labelsize=S_SIZE) 
 	ax.tick_params(axis='both', which='minor', labelsize=S_SIZE)	
 	# color
 	plot_bg_color = (1, 1, 0.5)
-	# plot
-	ax.plot(x, y)
-	for i, (event, px)  in enumerate(zip(events[0], events[2])):
+	# plot dynamic pressure vs altitude
+	ax.plot(altitude, dynamic_pressure)
+	# mark events. events_data = (event, time, altitude, velocity)
+	for i, (event, px)  in enumerate(zip(events_data[0], events_data[2])):
 		py = 0
 		ax.scatter( px, py, s=30, color='g')
 		ax.text( px, py+1, event, rotation=90, va='bottom', fontsize='x-small')
 	# find max-q
-	ymax = max(y)
-	xpos = y.index(ymax)
-	xmax = x[xpos]
+	ymax = max(dynamic_pressure)
+	xpos = dynamic_pressure.index(ymax)
+	xmax = altitude[xpos]
 	max_label = 'Max-Q = ' + str(round(ymax,2)) + ' kPa at altitude '+ str(round(xmax,2)) + ' km '
 	# indicate max-q
 	ax.annotate(max_label, xy=(xmax, ymax), xytext=(xmax, ymax-10),
@@ -275,49 +267,107 @@ def plot_alt_series( ax, title_label, x, x_label, y, y_label, events):
 	ax.grid(which='major', linestyle='-', linewidth='0.5', color='red')
 	# customize the minor grid
 	ax.grid(which='minor', linestyle=':', linewidth='0.5', color='black')	
-	return	
-	
-# plot(time, altitude, velocity, acceleration, q, events_data)
-def plot(plot_label, time, altitude, velocity, acceleration, dynamic_pressure, events_data):
-	# Create a figure with 2 rows and 2 cols of subplots
-	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(8,7))
-	fig.suptitle(plot_label, fontsize=10)
-	fig.subplots_adjust(top=0.8)
-	# plot altitude vs time
-	plot_time_series(ax1, 'Alt vs Time', altitude,  "Alt (km)", time, "Time (sec)", events_data )
-	# plot velocity vs time
-	plot_time_series(ax2, 'Vel vs Time', velocity, "Vel (km/s)", time, "Time (sec)", events_data )
-	# plot acceleration vs time
-	plot_time_series(ax3, 'Acel vs Time', acceleration,  "Accleration (in G's)", time, "Time (sec)", events_data )
-	# plot dynamic pressure vs altitude
-	plot_alt_series(ax4, 'Alt vs Dyn Pressure', altitude,  "Alt (km)", dynamic_pressure, "Dynamic Pressure (kPa)", events_data )
 	# show
 	fig.tight_layout(rect=[0, 0.03, 1, 0.95])
-	s_name = plot_label + '.png'
+	s_name = plot_label.lower() + '_' + plot_text.lower() + '.png'
 	plt.savefig(s_name)
 	plt.show()
-	return	
+	return
 
+# generate data for plotting acceleration vs time
+def get_acceleration_plot_data (file_evt, file_vel ):
+	# file check
+	if os.path.exists(file_evt):
+		# read event, time, altitude, velocity
+		event, time, altitude, velocity = read_flight_data(file_evt, 1)
+		events_data = (event, time, altitude, velocity)		
+		# relative velocity
+		velocity = [x - velocity[0] for x in velocity]		
+	# read velocity data (sec, m/sec)
+	f_time, f_velocity = read_velocity_data(file_vel, 1)
+	# get avg acceleration
+	f_acceleration = get_acceleration(f_velocity, f_time)	
+	# acceleration (m/s2) to (in G's) for plotting
+	f_acceleration = [a/9.8 for a in f_acceleration]
+	# accl_data (f_time, f_acceleration data's)
+	accl_data = (f_time, f_acceleration)	
+	return accl_data, events_data
+
+# generate data for plotting dynamic pressure vs alt	
+def get_dynamic_pressure_plot_data ( file_evt, file_alt, file_vel ):
+	combined_time = []; combined_velocity = []; combined_altitude = [];
+	# file check
+	if os.path.exists(file_evt):
+		# read event, time, altitude, velocity
+		event, time, altitude, velocity = read_flight_data(file_evt, 1)
+		events_data = (event, time, altitude, velocity)		
+		# relative velocity
+		velocity = [x - velocity[0] for x in velocity]		
+	# read velocity data (sec, m/sec)
+	f_time, f_velocity = read_velocity_data(file_vel, 1)
+	# read altitude data (sec, km)
+	h_time, h_altitude = read_altitude_data(file_alt, 1)	
+	# combine data
+	f_time = [round(t) for t in f_time]	
+	h_time = [round(t) for t in h_time]
+	for index, (ht, ha) in enumerate(zip(h_time, h_altitude)):
+		if ht in f_time:
+			f_index = f_time.index(ht)
+			combined_time.append(ht)
+			combined_altitude.append(ha)
+			combined_velocity.append(f_velocity[f_index]) 
+	# get atmospheric data
+	combined_density = get_density_data(filename_atm, combined_altitude)
+	# variables
+	f_dynamic = [];
+	# calculate dynamic pressure and drag force
+	for a, v, d in zip(combined_altitude, combined_velocity, combined_density):
+		q  = 1/2 * d * v**2;	# dynamic pressure
+		f_dynamic.append(q)
+
+	# velocity (m/s) to (Km/s) for plotting
+	combined_velocity = [v/1000 for v in combined_velocity]
+	# Pascal to KPa for plotting
+	f_dynamic = [p/1000 for p in f_dynamic]	
+
+	# tavd_data (time(s), altidude(Km), velocity(Km/s), dynamic pressure(KPa) data's)
+	tavd_data = (combined_time, combined_altitude, combined_velocity, f_dynamic)	
+	return tavd_data, events_data
+	
 # main function
 if __name__ == "__main__":
 	# atmospheric data
 	filename_atm = 'atm_data.dat'
 
 	# GSLV-MK3-D2 Data
+	vehicle_mission_name = 'GSLV-MK3-D2-GSAT-29'
 	filename_evt = 'gslv-mk3-d2-gsat29-flight-events.dat'
 	filename_alt = 'gslv-mk3-d2-gsat29-48-alt.dat'
 	filename_vel = 'gslv-mk3-d2-gsat29-48-vel.dat'
-	# generate values
-	time, altitude, velocity, acceleration, q, events_data = generatePlotValues(filename_atm, filename_evt, filename_alt, filename_vel)	
-	# plot
-	plot('GSLV-MK3-D2-GSAT-29', time, altitude, velocity, acceleration, q, events_data)
+	# get acceleration data
+	accl_data, events_data = get_acceleration_plot_data (filename_evt, filename_vel )
+	# plot acceleration
+	plot_acceleration(vehicle_mission_name, accl_data[0], accl_data[1], events_data)
+	# get time, altitude, velocity, dynamic pressure data
+	tavd_data, events_data = get_dynamic_pressure_plot_data ( filename_evt, filename_alt, filename_vel )
+	# plot dynamic pressure
+	plot_dynamic_pressure(vehicle_mission_name, tavd_data[1], tavd_data[3], events_data)
+	# plot merged display
+	plot_merged_display(vehicle_mission_name, tavd_data[0], tavd_data[1], tavd_data[2], events_data)
 
 	# PSLV-C26 Data
+	vehicle_mission_name = 'PSLV-C26-IRNSS-1C'
 	filename_evt = 'pslv-c26-irnss-1c-flight-events.dat'
 	filename_alt = 'pslv-c26-irnss-1c-11-alt.dat'
 	filename_vel = 'pslv-c26-irnss-1c-11-vel.dat'
-	# generate values
-	time, altitude, velocity, acceleration, q, events_data = generatePlotValues(filename_atm, filename_evt, filename_alt, filename_vel)
-	# plot
-	plot('PSLV-C26-IRNSS-1C', time, altitude, velocity, acceleration, q, events_data)	
 
+	# get acceleration data
+	accl_data, events_data = get_acceleration_plot_data (filename_evt, filename_vel )
+	# plot acceleration
+	plot_acceleration(vehicle_mission_name, accl_data[0], accl_data[1], events_data)
+	# get time, altitude, velocity, dynamic pressure data
+	tavd_data, events_data = get_dynamic_pressure_plot_data ( filename_evt, filename_alt, filename_vel )
+	# plot dynamic pressure
+	plot_dynamic_pressure(vehicle_mission_name, tavd_data[1], tavd_data[3], events_data)
+	# plot merged display
+	plot_merged_display(vehicle_mission_name, tavd_data[0], tavd_data[1], tavd_data[2], events_data)
