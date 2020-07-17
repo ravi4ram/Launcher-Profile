@@ -299,7 +299,7 @@ def savitzky_golay(y, window_size, order, deriv=0, rate=1):
 	return np.convolve( m[::-1], y, mode='valid')
 
 # generate data for plotting acceleration vs time
-def get_acceleration_plot_data (file_evt, file_vel, low_noise_filter_flag = True ):
+def get_acceleration_plot_data (file_evt, file_vel, low_noise_filter_flag = False ):
 	# file check
 	if os.path.exists(file_evt):
 		# read event, time, altitude, velocity
@@ -324,7 +324,7 @@ def get_acceleration_plot_data (file_evt, file_vel, low_noise_filter_flag = True
 	return accl_data, events_data
 
 # generate data for plotting dynamic pressure vs alt	
-def get_dynamic_pressure_plot_data ( file_evt, file_alt, file_vel, low_noise_filter_flag = True ):
+def get_dynamic_pressure_plot_data ( file_evt, file_alt, file_vel, low_noise_filter_flag = False ):
 	combined_time = []; combined_velocity = []; combined_altitude = [];
 	# file check
 	if os.path.exists(file_evt):
