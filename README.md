@@ -63,8 +63,13 @@ Script is written with python (Version: 3.6) on linux. Additional modules requir
 * run `python flight_profile.py`. 
 * It generates six png files at the current directory and opens the plot window one by one.  
 
-## Updates
-
+## Updates   
+* [16July2020]  
+*   *  Corrected acceleration profile plot 
+* [17July2020] 
+*   *  Corrected plot font sizes.  
+*   *  Included options for noise filterd plot  
+*       * Set the flag in line no. 383 of the code `apply_low_noise_filter_flag = True` to view the plot accordingly.
 ## To-do list
 * Other launch profile plots.
 

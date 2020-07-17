@@ -114,7 +114,7 @@ def get_acceleration(velocity, time):
 # set font sizes
 def set_plot_fonts():
 	# font size
-	S_SIZE = 7
+	S_SIZE = 9
 	plt.rc('font', size=S_SIZE)         # controls default text sizes
 	plt.rc('axes', titlesize=S_SIZE)    # fontsize of the axes title
 	plt.rc('axes', labelsize=S_SIZE)    # fontsize of the x and y labels
@@ -129,7 +129,7 @@ def plot_merged_display(plot_label, time, altitude, velocity, events_data):
 	fig.subplots_adjust(top=0.8)	
 	# fix font sizes
 	set_plot_fonts()
-	S_SIZE = 6
+	S_SIZE = 8
 	plot_text = 'Merged_Display'
 	ax1.set_title(plot_text, fontsize=S_SIZE)
 	# set the x label
@@ -187,7 +187,7 @@ def plot_acceleration(plot_label, time, acceleration, events_data):
 	time_label = "Time (sec)"
 	# fix font sizes
 	set_plot_fonts()
-	S_SIZE = 6
+	S_SIZE = 8
 	ax.set_title(plot_text, fontsize=S_SIZE)
 	ax.tick_params(axis='both', which='major', labelsize=S_SIZE) 
 	ax.tick_params(axis='both', which='minor', labelsize=S_SIZE)	
@@ -202,9 +202,9 @@ def plot_acceleration(plot_label, time, acceleration, events_data):
 		ax.scatter( px, py, s=30, color='g')
 		ax.text( px, py, event, fontsize='x-small')
 	# set axis labels 	
-	ax.xaxis.set_label_coords(0.5, -0.06)
+	# ax.xaxis.set_label_coords(0.5, -0.06)
 	ax.set_xlabel(time_label, fontsize=S_SIZE)
-	ax.yaxis.set_label_coords(-0.1,0.5)
+	# ax.yaxis.set_label_coords(-0.1,0.5)
 	ax.set_ylabel(alt_label, fontsize=S_SIZE)
 	# draw ticks like a graph sheet
 	ax.set_facecolor(plot_bg_color)
@@ -233,7 +233,7 @@ def plot_dynamic_pressure(plot_label, altitude, dynamic_pressure, events_data):
 	y_label = "Dynamic Pressure (kPa)"	
 	# setup fonts
 	set_plot_fonts()
-	S_SIZE = 6
+	S_SIZE = 8
 	ax.set_title(plot_text, fontsize=S_SIZE)
 	ax.tick_params(axis='both', which='major', labelsize=S_SIZE) 
 	ax.tick_params(axis='both', which='minor', labelsize=S_SIZE)	
@@ -255,9 +255,9 @@ def plot_dynamic_pressure(plot_label, altitude, dynamic_pressure, events_data):
 	ax.annotate(max_label, xy=(xmax, ymax), xytext=(xmax, ymax-10),
 				arrowprops=dict(facecolor='black', shrink=0.1, width=0.5) )
 	# set axis labels
-	ax.xaxis.set_label_coords(0.5, -0.06)
+	# ax.xaxis.set_label_coords(0.5, -0.06)
 	ax.set_xlabel(x_label, fontsize=S_SIZE)
-	ax.yaxis.set_label_coords(-0.1,0.5)
+	# ax.yaxis.set_label_coords(-0.1,0.5)
 	ax.set_ylabel(y_label, fontsize=S_SIZE)
 	# draw ticks like a graph sheet
 	ax.set_facecolor(plot_bg_color)
@@ -274,8 +274,32 @@ def plot_dynamic_pressure(plot_label, altitude, dynamic_pressure, events_data):
 	plt.show()
 	return
 
+# from https://scipy-cookbook.readthedocs.io/items/SavitzkyGolay.html
+def savitzky_golay(y, window_size, order, deriv=0, rate=1):
+	from math import factorial
+	try:
+		window_size = np.abs(np.int(window_size))
+		order = np.abs(np.int(order))
+	except ValueError as msg:
+		raise ValueError("window_size and order have to be of type int")
+	if window_size % 2 != 1 or window_size < 1:
+		raise TypeError("window_size size must be a positive odd number")
+	if window_size < order + 2:
+		raise TypeError("window_size is too small for the polynomials order")
+	order_range = list(range(order+1))
+	half_window = (window_size -1) // 2
+	# precompute coefficients
+	b = np.mat([[k**i for i in order_range] for k in range(-half_window, half_window+1)])
+	m = np.linalg.pinv(b).A[deriv] * rate**deriv * factorial(deriv)
+	# pad the signal at the extremes with
+	# values taken from the signal itself
+	firstvals = y[0] - np.abs( y[1:half_window+1][::-1] - y[0] )
+	lastvals = y[-1] + np.abs(y[-half_window-1:-1][::-1] - y[-1])
+	y = np.concatenate((firstvals, y, lastvals))
+	return np.convolve( m[::-1], y, mode='valid')
+
 # generate data for plotting acceleration vs time
-def get_acceleration_plot_data (file_evt, file_vel ):
+def get_acceleration_plot_data (file_evt, file_vel, low_noise_filter_flag = True ):
 	# file check
 	if os.path.exists(file_evt):
 		# read event, time, altitude, velocity
@@ -289,12 +313,18 @@ def get_acceleration_plot_data (file_evt, file_vel ):
 	f_acceleration = get_acceleration(f_velocity, f_time)	
 	# acceleration (m/s2) to (in G's) for plotting
 	f_acceleration = [a/9.8 for a in f_acceleration]
-	# accl_data (f_time, f_acceleration data's)
-	accl_data = (f_time, f_acceleration)	
+	# output the data (filtered vs non-filtered) based on the flag
+	if low_noise_filter_flag: 
+		# remove noise for plotting (window size 51, polynomial order 3 )
+		f_acceleration_filtered = savitzky_golay(np.array(f_acceleration), 51, 3) 			
+		accl_data = (f_time, f_acceleration_filtered.tolist())
+	else: 
+		accl_data = (f_time, f_acceleration)	
+	# accleration data (f_time, f_acceleration data's)
 	return accl_data, events_data
 
 # generate data for plotting dynamic pressure vs alt	
-def get_dynamic_pressure_plot_data ( file_evt, file_alt, file_vel ):
+def get_dynamic_pressure_plot_data ( file_evt, file_alt, file_vel, low_noise_filter_flag = True ):
 	combined_time = []; combined_velocity = []; combined_altitude = [];
 	# file check
 	if os.path.exists(file_evt):
@@ -332,24 +362,37 @@ def get_dynamic_pressure_plot_data ( file_evt, file_alt, file_vel ):
 
 	# tavd_data (time(s), altidude(Km), velocity(Km/s), dynamic pressure(KPa) data's)
 	tavd_data = (combined_time, combined_altitude, combined_velocity, f_dynamic)	
+	# output the data (filtered vs non-filtered) based on the flag
+	if low_noise_filter_flag: 
+		# remove noise for plotting (window size 51, polynomial order 3 )
+		f_dynamic_filtered = savitzky_golay(np.array(f_dynamic), 51, 3) 			
+		# tavd_data (time(s), altidude(Km), velocity(Km/s), dynamic pressure(KPa) data's)
+		tavd_data = (combined_time, combined_altitude, combined_velocity, f_dynamic_filtered.tolist())		
+	else: 
+		# tavd_data (time(s), altidude(Km), velocity(Km/s), dynamic pressure(KPa) data's)
+		tavd_data = (combined_time, combined_altitude, combined_velocity, f_dynamic)	
+	
 	return tavd_data, events_data
 	
 # main function
 if __name__ == "__main__":
 	# atmospheric data
-	filename_atm = 'atm_data.dat'
+	filename_atm = './data/atm_data.dat'
+	
+	# plot with noise filtered data
+	apply_low_noise_filter_flag = True
 
 	# GSLV-MK3-D2 Data
 	vehicle_mission_name = 'GSLV-MK3-D2-GSAT-29'
-	filename_evt = 'gslv-mk3-d2-gsat29-flight-events.dat'
-	filename_alt = 'gslv-mk3-d2-gsat29-48-alt.dat'
-	filename_vel = 'gslv-mk3-d2-gsat29-48-vel.dat'
+	filename_evt = './data/gslv-mk3-d2-gsat29-flight-events.dat'
+	filename_alt = './data/gslv-mk3-d2-gsat29-48-alt.dat'
+	filename_vel = './data/gslv-mk3-d2-gsat29-48-vel.dat'
 	# get acceleration data
-	accl_data, events_data = get_acceleration_plot_data (filename_evt, filename_vel )
+	accl_data, events_data = get_acceleration_plot_data (filename_evt, filename_vel, apply_low_noise_filter_flag )
 	# plot acceleration
 	plot_acceleration(vehicle_mission_name, accl_data[0], accl_data[1], events_data)
 	# get time, altitude, velocity, dynamic pressure data
-	tavd_data, events_data = get_dynamic_pressure_plot_data ( filename_evt, filename_alt, filename_vel )
+	tavd_data, events_data = get_dynamic_pressure_plot_data ( filename_evt, filename_alt, filename_vel, apply_low_noise_filter_flag )
 	# plot dynamic pressure
 	plot_dynamic_pressure(vehicle_mission_name, tavd_data[1], tavd_data[3], events_data)
 	# plot merged display
@@ -357,16 +400,16 @@ if __name__ == "__main__":
 
 	# PSLV-C26 Data
 	vehicle_mission_name = 'PSLV-C26-IRNSS-1C'
-	filename_evt = 'pslv-c26-irnss-1c-flight-events.dat'
-	filename_alt = 'pslv-c26-irnss-1c-11-alt.dat'
-	filename_vel = 'pslv-c26-irnss-1c-11-vel.dat'
+	filename_evt = './data/pslv-c26-irnss-1c-flight-events.dat'
+	filename_alt = './data/pslv-c26-irnss-1c-11-alt.dat'
+	filename_vel = './data/pslv-c26-irnss-1c-11-vel.dat'
 
 	# get acceleration data
-	accl_data, events_data = get_acceleration_plot_data (filename_evt, filename_vel )
+	accl_data, events_data = get_acceleration_plot_data (filename_evt, filename_vel, apply_low_noise_filter_flag )
 	# plot acceleration
 	plot_acceleration(vehicle_mission_name, accl_data[0], accl_data[1], events_data)
 	# get time, altitude, velocity, dynamic pressure data
-	tavd_data, events_data = get_dynamic_pressure_plot_data ( filename_evt, filename_alt, filename_vel )
+	tavd_data, events_data = get_dynamic_pressure_plot_data ( filename_evt, filename_alt, filename_vel, apply_low_noise_filter_flag )
 	# plot dynamic pressure
 	plot_dynamic_pressure(vehicle_mission_name, tavd_data[1], tavd_data[3], events_data)
 	# plot merged display
