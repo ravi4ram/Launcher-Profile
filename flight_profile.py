@@ -2,10 +2,12 @@ import os.path
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.signal as signal
 
 from bisect import bisect_left
 from scipy.interpolate import make_interp_spline, BSpline
 
+	
 # parse flight sequence data
 def read_flight_data(fileName, sh=1):
 	ldata = np.genfromtxt(fileName, delimiter='|', skip_header=sh, autostrip=True, dtype='unicode')
@@ -274,30 +276,16 @@ def plot_dynamic_pressure(plot_label, altitude, dynamic_pressure, events_data):
 	plt.show()
 	return
 
-# from https://scipy-cookbook.readthedocs.io/items/SavitzkyGolay.html
-def savitzky_golay(y, window_size, order, deriv=0, rate=1):
-	from math import factorial
-	try:
-		window_size = np.abs(np.int(window_size))
-		order = np.abs(np.int(order))
-	except ValueError as msg:
-		raise ValueError("window_size and order have to be of type int")
-	if window_size % 2 != 1 or window_size < 1:
-		raise TypeError("window_size size must be a positive odd number")
-	if window_size < order + 2:
-		raise TypeError("window_size is too small for the polynomials order")
-	order_range = list(range(order+1))
-	half_window = (window_size -1) // 2
-	# precompute coefficients
-	b = np.mat([[k**i for i in order_range] for k in range(-half_window, half_window+1)])
-	m = np.linalg.pinv(b).A[deriv] * rate**deriv * factorial(deriv)
-	# pad the signal at the extremes with
-	# values taken from the signal itself
-	firstvals = y[0] - np.abs( y[1:half_window+1][::-1] - y[0] )
-	lastvals = y[-1] + np.abs(y[-half_window-1:-1][::-1] - y[-1])
-	y = np.concatenate((firstvals, y, lastvals))
-	return np.convolve( m[::-1], y, mode='valid')
-
+# butterworth filter
+def butterworth(rough_data):
+	# Filter order
+	N  = 7 
+	# Cutoff frequency
+	Wn = 0.07 
+	B, A = signal.butter(N, Wn, output='ba')
+	smooth_data = signal.filtfilt(B,A, rough_data)
+	return smooth_data
+    	    
 # generate data for plotting acceleration vs time
 def get_acceleration_plot_data (file_evt, file_vel, low_noise_filter_flag = False ):
 	# file check
@@ -309,14 +297,17 @@ def get_acceleration_plot_data (file_evt, file_vel, low_noise_filter_flag = Fals
 		velocity = [x - velocity[0] for x in velocity]		
 	# read velocity data (sec, m/sec)
 	f_time, f_velocity = read_velocity_data(file_vel, 1)
+	# f_time = [round(t) for t in f_time]
 	# get avg acceleration
 	f_acceleration = get_acceleration(f_velocity, f_time)	
+	# round it for plotting
+	f_time = [round(t) for t in f_time]	
 	# acceleration (m/s2) to (in G's) for plotting
 	f_acceleration = [a/9.8 for a in f_acceleration]
 	# output the data (filtered vs non-filtered) based on the flag
 	if low_noise_filter_flag: 
-		# remove noise for plotting (window size 51, polynomial order 3 )
-		f_acceleration_filtered = savitzky_golay(np.array(f_acceleration), 51, 3) 			
+		# butterworth filter		
+		f_acceleration_filtered = butterworth( np.array(f_acceleration))			
 		accl_data = (f_time, f_acceleration_filtered.tolist())
 	else: 
 		accl_data = (f_time, f_acceleration)	
@@ -324,7 +315,7 @@ def get_acceleration_plot_data (file_evt, file_vel, low_noise_filter_flag = Fals
 	return accl_data, events_data
 
 # generate data for plotting dynamic pressure vs alt	
-def get_dynamic_pressure_plot_data ( file_evt, file_alt, file_vel, low_noise_filter_flag = False ):
+def get_dynamic_pressure_plot_data ( file_evt, file_alt, file_vel, filename_atm, low_noise_filter_flag = False ):
 	combined_time = []; combined_velocity = []; combined_altitude = [];
 	# file check
 	if os.path.exists(file_evt):
@@ -364,8 +355,8 @@ def get_dynamic_pressure_plot_data ( file_evt, file_alt, file_vel, low_noise_fil
 	tavd_data = (combined_time, combined_altitude, combined_velocity, f_dynamic)	
 	# output the data (filtered vs non-filtered) based on the flag
 	if low_noise_filter_flag: 
-		# remove noise for plotting (window size 51, polynomial order 3 )
-		f_dynamic_filtered = savitzky_golay(np.array(f_dynamic), 51, 3) 			
+		# butterworth filter		
+		f_dynamic_filtered = butterworth( np.array(f_dynamic))
 		# tavd_data (time(s), altidude(Km), velocity(Km/s), dynamic pressure(KPa) data's)
 		tavd_data = (combined_time, combined_altitude, combined_velocity, f_dynamic_filtered.tolist())		
 	else: 
@@ -373,13 +364,28 @@ def get_dynamic_pressure_plot_data ( file_evt, file_alt, file_vel, low_noise_fil
 		tavd_data = (combined_time, combined_altitude, combined_velocity, f_dynamic)	
 	
 	return tavd_data, events_data
+
+# plot vehicle profiles
+def plot_profiles( vehicle_mission_name, filename_evt, filename_alt, filename_vel, filename_atm, apply_low_noise_filter_flag ):
+	# get acceleration data
+	accl_data, events_data = get_acceleration_plot_data (filename_evt, filename_vel, apply_low_noise_filter_flag )
+	# plot acceleration
+	plot_acceleration(vehicle_mission_name, accl_data[0], accl_data[1], events_data)
+	# get time, altitude, velocity, dynamic pressure data
+	tavd_data, events_data = get_dynamic_pressure_plot_data ( filename_evt, filename_alt, filename_vel, filename_atm, apply_low_noise_filter_flag )
+	# plot dynamic pressure
+	plot_dynamic_pressure(vehicle_mission_name, tavd_data[1], tavd_data[3], events_data)
+	# plot merged display
+	plot_merged_display(vehicle_mission_name, tavd_data[0], tavd_data[1], tavd_data[2], events_data)
+
+	return
 	
 # main function
 if __name__ == "__main__":
 	# atmospheric data
 	filename_atm = './data/atm_data.dat'
 	
-	# plot with noise filtered data
+	# plot data with noise filtering 
 	apply_low_noise_filter_flag = True
 
 	# GSLV-MK3-D2 Data
@@ -387,30 +393,22 @@ if __name__ == "__main__":
 	filename_evt = './data/gslv-mk3-d2-gsat29-flight-events.dat'
 	filename_alt = './data/gslv-mk3-d2-gsat29-48-alt.dat'
 	filename_vel = './data/gslv-mk3-d2-gsat29-48-vel.dat'
-	# get acceleration data
-	accl_data, events_data = get_acceleration_plot_data (filename_evt, filename_vel, apply_low_noise_filter_flag )
-	# plot acceleration
-	plot_acceleration(vehicle_mission_name, accl_data[0], accl_data[1], events_data)
-	# get time, altitude, velocity, dynamic pressure data
-	tavd_data, events_data = get_dynamic_pressure_plot_data ( filename_evt, filename_alt, filename_vel, apply_low_noise_filter_flag )
-	# plot dynamic pressure
-	plot_dynamic_pressure(vehicle_mission_name, tavd_data[1], tavd_data[3], events_data)
-	# plot merged display
-	plot_merged_display(vehicle_mission_name, tavd_data[0], tavd_data[1], tavd_data[2], events_data)
+	# plot gslv-mk3 profiles	
+	plot_profiles( vehicle_mission_name, filename_evt, filename_alt, filename_vel, filename_atm, apply_low_noise_filter_flag )
+
+	# GSLV-MK2-F08 Data
+	vehicle_mission_name = 'GSLV-MK2-F08-GSAT-6A'
+	filename_evt = './data/gslv-f08-gsat6a-flight-events.dat'
+	filename_alt = './data/gslv-f08-gsat6a-42-alt.dat'
+	filename_vel = './data/gslv-f08-gsat6a-42-vel.dat'	
+	# plot gslv-mk2 profiles	
+	plot_profiles( vehicle_mission_name, filename_evt, filename_alt, filename_vel, filename_atm, apply_low_noise_filter_flag )
 
 	# PSLV-C26 Data
 	vehicle_mission_name = 'PSLV-C26-IRNSS-1C'
 	filename_evt = './data/pslv-c26-irnss-1c-flight-events.dat'
 	filename_alt = './data/pslv-c26-irnss-1c-11-alt.dat'
 	filename_vel = './data/pslv-c26-irnss-1c-11-vel.dat'
+	# plot pslv profiles
+	plot_profiles( vehicle_mission_name, filename_evt, filename_alt, filename_vel, filename_atm, apply_low_noise_filter_flag )
 
-	# get acceleration data
-	accl_data, events_data = get_acceleration_plot_data (filename_evt, filename_vel, apply_low_noise_filter_flag )
-	# plot acceleration
-	plot_acceleration(vehicle_mission_name, accl_data[0], accl_data[1], events_data)
-	# get time, altitude, velocity, dynamic pressure data
-	tavd_data, events_data = get_dynamic_pressure_plot_data ( filename_evt, filename_alt, filename_vel, apply_low_noise_filter_flag )
-	# plot dynamic pressure
-	plot_dynamic_pressure(vehicle_mission_name, tavd_data[1], tavd_data[3], events_data)
-	# plot merged display
-	plot_merged_display(vehicle_mission_name, tavd_data[0], tavd_data[1], tavd_data[2], events_data)

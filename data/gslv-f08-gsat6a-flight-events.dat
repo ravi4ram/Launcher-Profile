@@ -1,0 +1,14 @@
+Event|Time(s)|Alt. (km)|Vel. (m/s)
+Strap-On Booster Ignition|0.0|0.0|0
+Core Stage (S139) Ignition|0.0|0.0|0	
+Strap-Ons shut off|148.94|71.29|2393.9
+Second stage ignition|149.54|71.75|2394.8
+First stage separation|151.14|72.97|2393.2
+Payload Fairing Jettison|225.34|115.33|3438.1
+Second stage shut off|281.92|132.54|4914.8
+Second stage separation|285.42|133.27|4934.4
+Cryogenic Upper Stage ignition|286.42|133.47|4934.0
+Cryogenic Upper Stage shut off|1051.5|239.39|9753.2
+Cryogenic Upper Stage burn out|1055.5|243.29|9753.6
+GSAT-6A Spacecraft Separation|1066.5|254.53|9743.2
+
