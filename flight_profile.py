@@ -113,6 +113,19 @@ def get_acceleration(velocity, time):
 		acceleration.append(a)	
 	return acceleration
 
+# calculate avg jerk from acceleration and time intervel
+def get_jerk(acceleration, time):
+	jerk = []
+	pre_time = 0; pre_acceleration = 0;
+	for i, (t, a) in enumerate( zip(time, acceleration)): 
+		da = a - pre_acceleration
+		dt = t - pre_time			
+		if dt != 0:  j = da/dt
+		else: j = 0
+		pre_time = t; pre_acceleration = a;		
+		jerk.append(j)	
+	return jerk
+
 # set font sizes
 def set_plot_fonts():
 	# font size
@@ -177,6 +190,53 @@ def plot_merged_display(plot_label, time, altitude, velocity, events_data):
 	plt.savefig(s_name)
 	plt.show()
 	return
+
+# plot jerk vs time	
+def plot_jerk(plot_label, time, jerk, events_data):
+	# Create a figure with 2 rows and 2 cols of subplots
+	fig, ax = plt.subplots( figsize=(12,5) )
+	fig.suptitle(plot_label, fontsize=10)
+	fig.subplots_adjust(top=0.8)	
+	plot_text = 'Jerk_vs_Time'
+	alt_label = "Jerk (in G/s)"
+	time_label = "Time (sec)"
+	# fix font sizes
+	set_plot_fonts()
+	S_SIZE = 8
+	ax.set_title(plot_text, fontsize=S_SIZE)
+	ax.tick_params(axis='both', which='major', labelsize=S_SIZE) 
+	ax.tick_params(axis='both', which='minor', labelsize=S_SIZE)	
+	# color
+	plot_bg_color = (1, 1, 0.5)
+	# plot
+	ax.plot(time, jerk)
+	# mark events. events_data = (event, time, altitude, velocity)
+	for i, (event, px)  in enumerate(zip(events_data[0], events_data[1])):
+		time_index, val = find_nearest(time, px)
+		py = jerk[time_index]
+		ax.scatter( px, py, s=30, color='g')
+		ax.text( px, py, event, fontsize='x-small')
+	# set axis labels 	
+	# ax.xaxis.set_label_coords(0.5, -0.06)
+	ax.set_xlabel(time_label, fontsize=S_SIZE)
+	# ax.yaxis.set_label_coords(-0.1,0.5)
+	ax.set_ylabel(alt_label, fontsize=S_SIZE)
+	# draw ticks like a graph sheet
+	ax.set_facecolor(plot_bg_color)
+	# turn on the minor TICKS
+	ax.minorticks_on()
+	# customize the major grid
+	ax.grid(which='major', linestyle='-', linewidth='0.5', color='red')
+	# customize the minor grid
+	ax.grid(which='minor', linestyle=':', linewidth='0.5', color='black')		
+
+	# show
+	fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+	s_name = plot_label.lower() + '_' + plot_text.lower() + '.png'
+	plt.savefig(s_name)
+	plt.show()
+	return
+
 
 # plot acceleration vs time	
 def plot_acceleration(plot_label, time, acceleration, events_data):
@@ -314,6 +374,25 @@ def get_acceleration_plot_data (file_evt, file_vel, low_noise_filter_flag = Fals
 	# accleration data (f_time, f_acceleration data's)
 	return accl_data, events_data
 
+# generate data for plotting acceleration vs time
+def get_jerk_plot_data (accl_data, events_data, low_noise_filter_flag = False ):
+    (f_time, f_acceleration) = accl_data
+    (event, time, altitude, velocity) = events_data
+    # calculate avg jerk from acceleration and time intervel
+    f_jerk =  get_jerk(f_acceleration, f_time)
+    # acceleration (m/s2) to (in G's) for plotting
+    #f_acceleration = [a/9.8 for a in f_acceleration]
+    # output the data (filtered vs non-filtered) based on the flag
+    if low_noise_filter_flag: 
+        # butterworth filter		
+        f_jerk_filtered = butterworth( np.array(f_jerk))			
+        jerk_data = (f_time, f_jerk_filtered.tolist())
+    else: 
+        jerk_data = (f_time, f_jerk)	
+    # accleration data (f_time, f_acceleration data's)
+    return jerk_data, events_data
+
+
 # generate data for plotting dynamic pressure vs alt	
 def get_dynamic_pressure_plot_data ( file_evt, file_alt, file_vel, filename_atm, low_noise_filter_flag = False ):
 	combined_time = []; combined_velocity = []; combined_altitude = [];
@@ -371,6 +450,10 @@ def plot_profiles( vehicle_mission_name, filename_evt, filename_alt, filename_ve
 	accl_data, events_data = get_acceleration_plot_data (filename_evt, filename_vel, apply_low_noise_filter_flag )
 	# plot acceleration
 	plot_acceleration(vehicle_mission_name, accl_data[0], accl_data[1], events_data)
+	# get jerk data (time, jerk)
+	jerk_data, events_data = get_jerk_plot_data (accl_data, events_data, apply_low_noise_filter_flag )
+	# plot jerk
+	plot_jerk(vehicle_mission_name, jerk_data[0], jerk_data[1], events_data)	
 	# get time, altitude, velocity, dynamic pressure data
 	tavd_data, events_data = get_dynamic_pressure_plot_data ( filename_evt, filename_alt, filename_vel, filename_atm, apply_low_noise_filter_flag )
 	# plot dynamic pressure
@@ -411,4 +494,3 @@ if __name__ == "__main__":
 	filename_vel = './data/pslv-c26-irnss-1c-11-vel.dat'
 	# plot pslv profiles
 	plot_profiles( vehicle_mission_name, filename_evt, filename_alt, filename_vel, filename_atm, apply_low_noise_filter_flag )
-
