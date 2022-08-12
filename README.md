@@ -39,7 +39,7 @@ This project was started as a result of non-availability of ISRO launch vehicle 
 With the lack of publicly available data, I ended-up extracting data from the screen shot of the televised launch.  Used the software [Engauge Digitizer](https://markummitchell.github.io/engauge-digitizer/) 
 to extract data points from images of graphs. These image plots contains both altitude and relative velocity against time on the same graph (ISRO's merged display plots).   
 ![results](./img/gslv-mk3-d2-gsat29-48.jpg)   
-![results](./img/gslv-mk2-f08-gsat-6a-42.jpg)
+![results](./img/gslv-mk2-f08-gsat-6a-42.jpg)   
 ![results](./img/pslv-c26-irnss-1c-11.jpg)    
 
 Extracted data files are   
